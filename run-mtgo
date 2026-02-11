@@ -254,12 +254,41 @@ else
         run xhost +local:1000
         reset_xhost=true
     fi
+    if [ -z "${DISPLAY:-}" ]; then
+        echo "Error: DISPLAY is not set. Ensure XWayland is enabled in your desktop session." >&2
+        exit 1
+    fi
     XSOCK="/tmp/.X11-unix"
     XAUTH="${local_data}/Xauthority"
     > ${XAUTH}
-    xauth nlist ${DISPLAY} | sed -e 's/^..../ffff/' | xauth -f ${XAUTH} nmerge -
+
+    _host_xauth="${XAUTHORITY:-$HOME/.Xauthority}"
+    if [ ! -r "${_host_xauth}" ] && [ -d "/run/user/${_host_uid}" ]; then
+        _mutter_xauth=$(find "/run/user/${_host_uid}" -maxdepth 1 -name '.mutter-Xwaylandauth.*' -print -quit)
+        if [ -n "${_mutter_xauth}" ]; then
+            _host_xauth="${_mutter_xauth}"
+        fi
+    fi
+
+    if [ -r "${_host_xauth}" ]; then
+        xauth -f "${_host_xauth}" nlist "${DISPLAY}" | sed -e 's/^..../ffff/' | xauth -f "${XAUTH}" nmerge -
+    else
+        echo "Warning: could not read Xauthority (${_host_xauth}), relying on xhost permissions." >&2
+    fi
+
     opts="${opts} -v ${XSOCK}:${XSOCK}:rw"
     opts="${opts} -v ${XAUTH}:/home/wine/.Xauthority:ro"
+
+    if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -d "/run/user/${_host_uid}" ]; then
+        _host_wayland_socket="/run/user/${_host_uid}/${WAYLAND_DISPLAY}"
+        if [ -S "${_host_wayland_socket}" ]; then
+            opts="${opts} -e XDG_SESSION_TYPE=wayland"
+            opts="${opts} -e WAYLAND_DISPLAY=${WAYLAND_DISPLAY}"
+            opts="${opts} -e XDG_RUNTIME_DIR=/run/user/1000"
+            opts="${opts} -v ${_host_wayland_socket}:/run/user/1000/${WAYLAND_DISPLAY}"
+        fi
+    fi
+
     WEBBROWSER=xdg-open
 fi
 

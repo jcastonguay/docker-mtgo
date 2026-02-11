@@ -42,6 +42,10 @@ sudo usermod -aG docker $USER
 ```
 You need to logout/login for the changes to take effect.
 
+On Ubuntu 24.04 (Wayland session), `run-mtgo` now auto-detects modern
+Xauthority locations used by GNOME/XWayland and forwards the Wayland socket
+when available.
+
 ### macOS
 
 Support for macOS is still under test.
