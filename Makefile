@@ -3,7 +3,7 @@ TIMESTAMP=$(shell date +%F)
 
 BASE=panard/mtgo:$(TIMESTAMP)
 
-DOCKER=docker
+DOCKER=podman
 
 image:
 	$(DOCKER) build -t $(BASE) .

@@ -2,7 +2,7 @@
 
 defaultcmd="mtgo"
 docker_client="podman"
-image=docker.io/mtgo:latest
+image=docker.io/panard/mtgo:latest
 name=mtgo_running
 cmd=$defaultcmd
 cmdargs=""
@@ -197,7 +197,7 @@ if $detect_tz; then
   fi
 fi
 
-run ${docker_client} info || exit 1
+run "${docker_client}" info || exit 1
 echo "UID=${UID}"
 
 if $do_reset; then
@@ -205,38 +205,38 @@ if $do_reset; then
   echo "WARNING: $msg" >&2
   echo "Press Enter to continue, CTRL+C to abort" >&2
   read
-  run ${docker_client} volume rm $data
+  run "${docker_client}" volume rm $data
 fi
 
 if $do_update; then
   echo "Updating image ${image}..." >&2
-  run ${docker_client} pull ${image}
+  run "${docker_client}" pull ${image}
 fi
 
 ${docker_client} volume inspect "$data" >/dev/null 2>&1
 if [ $? -ne 0 ]; then
   set -e
-  run ${docker_client} volume create "${data}"
+  run "${docker_client}" volume create "${data}"
 
   # migration
   old_data=mtgo-data
   set +e
-  ${docker_client} volume inspect ${old_data} >/dev/null 2>&1
+  "${docker_client}" volume inspect "${old_data}" >/dev/null 2>&1
   if [ $? -eq 0 ]; then
     set -e
     echo "Migrating from previous configuration..." >&2
-    run ${docker_client} run ${opts} --rm -v ${data}:/home/wine/.wine/host \
-      -v ${old_data}:/data \
-      -v ${local_data}:/ldata \
-      -i ${image} bash <<EOF
+    run "${docker_client}" run ${opts} --rm -v "${data}":/home/wine/.wine/host \
+      -v "${old_data}":/data \
+      -v "${local_data}":/ldata \
+      -i "${image}" bash <<EOF
 cp -av /data/* /home/wine/.wine/host/
 cp -v /ldata/*.reg /home/wine/.wine/host/
 chown -R wine: /home/wine/.wine/host/
 EOF
-    run ${docker_client} volume rm ${old_data}
+    run "${docker_client}" volume rm ${old_data}
   else
     set -e
-    run ${docker_client} run ${opts} --rm -v ${data}:/home/wine/.wine/host ${image} true
+    run "${docker_client}" run ${opts} --rm -v "${data}":/home/wine/.wine/host "${image}" true
   fi
 fi
 set -e
@@ -296,16 +296,16 @@ else
 
   opts="${opts} -v ${XSOCK}:${XSOCK}:rw"
   opts="${opts} -v ${XAUTH}:/home/wine/.Xauthority:ro"
-
-  if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -d "/run/user/${_host_uid}" ]; then
-    _host_wayland_socket="/run/user/${_host_uid}/${WAYLAND_DISPLAY}"
-    if [ -S "${_host_wayland_socket}" ]; then
-      opts="${opts} -e XDG_SESSION_TYPE=wayland"
-      opts="${opts} -e WAYLAND_DISPLAY=${WAYLAND_DISPLAY}"
-      opts="${opts} -e XDG_RUNTIME_DIR=/run/user/1000"
-      opts="${opts} -v ${_host_wayland_socket}:/run/user/1000/${WAYLAND_DISPLAY}"
-    fi
-  fi
+  #
+  #  if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -d "/run/user/${_host_uid}" ]; then
+  #    _host_wayland_socket="/run/user/${_host_uid}/${WAYLAND_DISPLAY}"
+  #    if [ -S "${_host_wayland_socket}" ]; then
+  #      opts="${opts} -e XDG_SESSION_TYPE=wayland"
+  #      opts="${opts} -e WAYLAND_DISPLAY=${WAYLAND_DISPLAY}"
+  #      opts="${opts} -e XDG_RUNTIME_DIR=/run/user/1000"
+  #      opts="${opts} -v ${_host_wayland_socket}:/run/user/1000/${WAYLAND_DISPLAY}"
+  #    fi
+  #  fi
 
   WEBBROWSER=xdg-open
 fi
@@ -362,15 +362,15 @@ fi
 if [ -n "${bind_documents}" ]; then
   opts="${opts} -v ${bind_documents}:/home/wine/.wine/drive_c/users/wine/Documents"
 fi
-if [ ${limit_cpus} -gt 0 ]; then
+if [ "${limit_cpus}" -gt 0 ]; then
   opts="${opts} --cpuset-cpus 0-$((${limit_cpus} - 1))"
 fi
 
 opts="${opts} --device=/dev/dri:/dev/dri"
 
 docker_mtgo() {
-  #run ${docker_client} run --privileged --rm -e DISPLAY \
-  run ${docker_client} run --rm -e DISPLAY ${opts} ${image} ${cmd} ${cmdargs}
+  #run "${docker_client}" run --privileged --rm -e DISPLAY \
+  run "${docker_client}" run --rm -e DISPLAY ${opts} ${image} ${cmd} ${cmdargs}
 }
 watch_openurl() {
   while read -r line; do
