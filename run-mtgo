@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-
+set -x
 defaultcmd="mtgo"
 docker_client="podman"
-image=localhost/panard/mtgo:2026-05-05
+image=localhost/panard/mtgo:2026-05-06
 name=mtgo_running
 cmd=$defaultcmd
 cmdargs=""
 opts="--userns keep-id"
 data="mtgo64-data-$USER"
-do_sound=false
 do_update=false
 
 local_data="$HOME/.local/share/mtgo"
@@ -101,10 +100,6 @@ while [ -n "${1:-}" ]; do
     ;;
   --winecfg)
     [[ "$cmd" == "mtgo" ]] && cmdargs="${cmdargs} $1"
-    ;;
-  --sound)
-    [[ "$cmd" == "mtgo" ]] && cmdargs="${cmdargs} $1"
-    do_sound=true
     ;;
   --disable-sound)
     [[ "$cmd" == "mtgo" ]] && cmdargs="${cmdargs} $1"
@@ -271,10 +266,10 @@ else
     run xhost +local:1000
     reset_xhost=true
   fi
-  if [ -z "${DISPLAY:-}" ]; then
-    echo "Error: DISPLAY is not set. Ensure XWayland is enabled in your desktop session." >&2
-    exit 1
-  fi
+  #  if [ -z "${DISPLAY:-}" ]; then
+  #    echo "Error: DISPLAY is not set. Ensure XWayland is enabled in your desktop session." >&2
+  #    exit 1
+  #  fi
   XSOCK="/tmp/.X11-unix"
   XAUTH="${local_data}/Xauthority"
 
@@ -288,64 +283,24 @@ else
 
   if [ -r "${_host_xauth}" ]; then
     xauth -f "${_host_xauth}" nlist "${DISPLAY}" | sed -e 's/^..../ffff/' | xauth -f "${XAUTH}" nmerge -
+    opts="${opts} -v ${XAUTH}:/home/wine/.Xauthority:ro"
   else
     echo "Warning: could not read Xauthority (${_host_xauth}), relying on xhost permissions." >&2
   fi
 
-  opts="${opts} -v ${XSOCK}:${XSOCK}:rw"
-  opts="${opts} -v ${XAUTH}:/home/wine/.Xauthority:ro"
-  #
-  #  if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -d "/run/user/${_host_uid}" ]; then
-  #    _host_wayland_socket="/run/user/${_host_uid}/${WAYLAND_DISPLAY}"
-  #    if [ -S "${_host_wayland_socket}" ]; then
-  #      opts="${opts} -e XDG_SESSION_TYPE=wayland"
-  #      opts="${opts} -e WAYLAND_DISPLAY=${WAYLAND_DISPLAY}"
-  #      opts="${opts} -e XDG_RUNTIME_DIR=/run/user/1000"
-  #      opts="${opts} -v ${_host_wayland_socket}:/run/user/1000/${WAYLAND_DISPLAY}"
-  #    fi
-  #  fi
+  if [ -z "$DISPLAY" ] && [ -n "${WAYLAND_DISPLAY:-}" ] && [ -d "/run/user/${_host_uid}" ]; then
+    _host_wayland_socket="/run/user/${_host_uid}/${WAYLAND_DISPLAY}"
+    if [ -S "${_host_wayland_socket}" ]; then
+      opts="${opts} -e XDG_SESSION_TYPE=wayland"
+      opts="${opts} -e WAYLAND_DISPLAY=${WAYLAND_DISPLAY}"
+      opts="${opts} -e XDG_RUNTIME_DIR=/run/user/1000"
+      opts="${opts} -v ${_host_wayland_socket}:/run/user/1000/${WAYLAND_DISPLAY}"
+    fi
+  else
+    opts="${opts} -v ${XSOCK}:${XSOCK}:rw -e DISPLAY"
+  fi
 
   WEBBROWSER=xdg-open
-fi
-
-if $do_sound; then
-  if [[ ${OSTYPE} == darwin* ]]; then
-    set +e
-    pulseaudio --version >/dev/null 2>&1
-    if [ $? -ne 0 ]; then
-      echo "PulseAudio does not seem to be installed.  Attempting install..." >&2
-      run brew install pulseaudio
-    fi
-    set -e
-    pascript="$(pulseaudio --dump-conf | grep '^default-script-file = ' | sed 's/^.*= *//')"
-    echo "PAScript is $pascript" >&2
-    pa_modified=false
-    set +e
-    pa_has_esound=$(grep "^load-module module-esound-protocol-tcp" "${pascript}")
-    pa_has_native=$(grep "^load-module module-native-protocol-tcp" "${pascript}")
-    set -e
-    pa_enable_module() {
-      echo "PulseAudio: enabling $1 module" >&2
-      echo "load-module module-$1" | sudo tee -a "${pascript}"
-    }
-    if [ -z "${pa_has_esound}" ]; then
-      pa_enable_module "esound-protocol-tcp"
-    fi
-    if [ -z "${pa_has_native}" ]; then
-      pa_enable_module "native-protocol-tcp"
-    fi
-    pulseaudio --check && pulseaudio -k || true
-    run pulseaudio -D
-    opts="${opts} -v $HOME/.config/pulse:/home/wine/.config/pulse"
-    opts="${opts} -e PULSE_SERVER=$ip"
-  else
-    _host_pulse="/run/user/${_host_uid}/pulse/native"
-    if [ ! -S $_host_pulse ]; then
-      echo "PulseAudio does not seem active (${_host_pulse} not found)" >&2
-      run pulseaudio --start
-    fi
-    opts="${opts} -i -v ${_host_pulse}:/run/user/1000/pulse/native"
-  fi
 fi
 
 opts="${opts} --net=host --ipc=host"
@@ -367,8 +322,7 @@ fi
 opts="${opts} --device=/dev/dri:/dev/dri"
 
 docker_mtgo() {
-  #run "${docker_client}" run --privileged --rm -e DISPLAY \
-  run "${docker_client}" run --rm -e DISPLAY ${opts} ${image} ${cmd} ${cmdargs}
+  run "${docker_client}" run --rm ${opts} ${image} ${cmd} ${cmdargs}
 }
 watch_openurl() {
   while read -r line; do

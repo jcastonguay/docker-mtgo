@@ -5,7 +5,11 @@ RUN dpkg --add-architecture i386 && apt update && apt install -y \
   mesa-vulkan-drivers mesa-vulkan-drivers:i386 \
   libgl1-mesa-dri libgl1-mesa-dri:i386 \
   libvulkan1 libvulkan1:i386 \
-  libgl1 libgl1:i386
+  libgl1 libgl1:i386 libegl1 libegl1:i386 \
+  libwayland-bin 
+#libwayland-dev \
+#libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+#gstreamer1.0-plugins-good gstreamer1.0-tools gstreamer1.0-pulseaudio pulseaudio-utils 
 
 ENV WINE_USER wine
 ENV WINE_UID 1000
@@ -14,20 +18,11 @@ RUN useradd -u $WINE_UID -d /home/wine -m -s /bin/bash $WINE_USER
 WORKDIR /home/wine
 
 COPY extra/host-webbrowser /usr/local/bin/xdg-open
-COPY extra/live-mtgo /usr/local/bin/live-mtgo
 
 USER wine
 
 RUN wineboot -i \
-  && for f in arial32 times32 trebuc32 verdan32; do \
-  curl -fL --output-dir /home/wine/.cache/winetricks/corefonts --create-dirs\
-  -O https://github.com/pauleve/docker-mtgo/releases/download/artifacts/$f.exe; done \
-  && curl -fL --output-dir /home/wine/.cache/winetricks/PowerPointViewer --create-dirs\
-  -O https://github.com/pauleve/docker-mtgo/releases/download/artifacts/PowerPointViewer.exe \
-  && winetricks -q corefonts calibri tahoma \
-  && taskset -c 0 winetricks -f -q dotnet48 \
-  && winetricks win7 sound=alsa \
-  && winetricks renderer=gdi \
+  && winetricks -q dotnet48 corefonts calibri tahoma consolas lucida win7 gdiplus renderer=gdi sound=pulse dxvk\
   && wineboot -s \
   && rm -rf /home/wine/.cache
 
@@ -47,7 +42,3 @@ RUN cd .wine && mkdir host \
 RUN mkdir -p \
   /home/wine/.wine/drive_c/users/wine/Documents\
   /home/wine/.wine/host/wine/Documents
-
-RUN winetricks -q dxvk
-RUN winetricks sound=disabled
-RUN winetricks vd=1920x1080
