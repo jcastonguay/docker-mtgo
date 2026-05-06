@@ -2,7 +2,7 @@
 
 defaultcmd="mtgo"
 docker_client="podman"
-image=docker.io/panard/mtgo:latest
+image=localhost/panard/mtgo:2026-05-05
 name=mtgo_running
 cmd=$defaultcmd
 cmdargs=""
@@ -104,8 +104,6 @@ while [ -n "${1:-}" ]; do
     ;;
   --sound)
     [[ "$cmd" == "mtgo" ]] && cmdargs="${cmdargs} $1"
-    image=panard/mtgo:sound
-    do_update=true
     do_sound=true
     ;;
   --disable-sound)
